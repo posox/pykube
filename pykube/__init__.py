@@ -33,5 +33,6 @@ from .objects import (  # noqa
     ClusterRole,
     RoleBinding,
     ClusterRoleBinding,
+    StorageClass,
 )
 from .query import now, all_ as all, everything  # noqa
