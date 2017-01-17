@@ -382,3 +382,10 @@ class ClusterRoleBinding(APIObject):
     version = "rbac.authorization.k8s.io/v1alpha1"
     endpoint = "clusterrolebindings"
     kind = "ClusterRoleBinding"
+
+
+class StorageClass(APIObject):
+
+    version = "storage.k8s.io/v1beta1"
+    endpoint = "storageclasses"
+    kind = "StorageClass"
