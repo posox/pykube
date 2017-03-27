@@ -69,7 +69,10 @@ class APIObject(object):
         else:
             operation = kwargs.pop("operation", "")
             kw["url"] = op.normpath(op.join(self.endpoint, self.name, operation))
-
+        params = kwargs.pop("params", None)
+        if params is not None:
+            query_string = urlencode(params)
+            kw["url"] = "{}{}".format(kw["url"], "?{}".format(query_string) if query_string else "")
         if self.base:
             kw["base"] = self.base
         kw["version"] = self.version
@@ -98,6 +101,14 @@ class APIObject(object):
         r = self.api.get(**self.api_kwargs())
         self.api.raise_for_status(r)
         self.set_obj(r.json())
+
+    def watch(self):
+        return self.__class__.objects(
+            self.api,
+            namespace=self.namespace
+        ).filter(field_selector={
+            "metadata.name": self.name
+        }).watch()
 
     def update(self):
         self.obj = obj_merge(self.obj, self._original_obj)
@@ -158,6 +169,33 @@ class Deployment(NamespacedAPIObject, ReplicatedMixin, ScalableMixin):
             self.obj["status"]["updatedReplicas"] == self.replicas
         )
 
+    def rollout_undo(self, target_revision=None):
+        """Produces same action as kubectl rollout undo deployment command.
+        Input variable is revision to rollback to (in kubectl, --to-revision)
+        """
+        if target_revision is None:
+            revision = {}
+        else:
+            revision = {
+                "revision": target_revision
+            }
+
+        params = {
+            "kind": "DeploymentRollback",
+            "apiVersion": self.version,
+            "name": self.name,
+            "rollbackTo": revision
+        }
+
+        kwargs = {
+            "version": self.version,
+            "namespace": self.namespace,
+            "operation": "rollback",
+        }
+        r = self.api.post(**self.api_kwargs(data=json.dumps(params), **kwargs))
+        r.raise_for_status()
+        return r.text
+
 
 class Endpoint(NamespacedAPIObject):
 
@@ -171,6 +209,13 @@ class Event(NamespacedAPIObject):
     version = "v1"
     endpoint = "events"
     kind = "Event"
+
+
+class LimitRange(NamespacedAPIObject):
+
+    version = "v1"
+    endpoint = "limitranges"
+    kind = "LimitRange"
 
 
 class ResourceQuota(NamespacedAPIObject):
@@ -356,7 +401,7 @@ class PetSet(NamespacedAPIObject):
     kind = "PetSet"
 
 
-class StatefulSet(NamespacedAPIObject):
+class StatefulSet(NamespacedAPIObject, ReplicatedMixin, ScalableMixin):
 
     version = "apps/v1beta1"
     endpoint = "statefulsets"
@@ -396,3 +441,10 @@ class StorageClass(APIObject):
     version = "storage.k8s.io/v1beta1"
     endpoint = "storageclasses"
     kind = "StorageClass"
+    
+    
+class PodSecurityPolicy(APIObject):
+
+    version = "extensions/v1beta1"
+    endpoint = "podsecuritypolicies"
+    kind = "PodSecurityPolicy"
